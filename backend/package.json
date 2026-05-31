@@ -1,31 +1,16 @@
 {
-  "name": "speech-to_text",
+  "name": "speech-to-text",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "main": "backend/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node backend/server.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/anutoshkumarray-max/speech-to_text.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/anutoshkumarray-max/speech-to_text/issues"
-  },
-  "homepage": "https://github.com/anutoshkumarray-max/speech-to_text#readme",
   "dependencies": {
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "groq-sdk": "^1.2.1",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1",
     "mongoose": "^9.6.3",
-    "multer": "^2.1.1",
-    "openai": "^6.39.1"
+    "groq-sdk": "^0.7.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2"
   }
 }
