@@ -1,64 +1,66 @@
-require('dotenv').config(); // Load environment variables from .env
+require('dotenv').config();
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const { OpenAI } = require('openai'); // Import OpenAI
-const { transcribeAudio } = require('./day4/transcribe'); // Import the function
+const Groq = require('groq-sdk');
 
 const app = express();
-const PORT = 5000;
+const PORT = 5001; // Port changed to 5001 to avoid macOS conflict
 
-app.use(cors());
+// Initialize Groq
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+// CORS setup
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
+
 app.use(express.json());
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Ensure folders exist
+if (!fs.existsSync('uploads')) fs.mkdirSync('uploads');
+if (!fs.existsSync('db.json')) fs.writeFileSync('db.json', JSON.stringify({ transcriptions: [] }));
 
-// Multer storage configuration
+// Multer Storage
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/');
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
-  }
+  destination: (req, file, cb) => cb(null, 'uploads/'),
+  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
 });
-
 const upload = multer({ storage: storage });
 
-// Upload and Transcribe route
+// Upload Route
 app.post('/upload', upload.single('audio'), async (req, res) => {
+  console.log("🔥 Request hit the backend!");
+  
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file selected!' });
-    }
+    if (!req.file) return res.status(400).json({ message: 'No file selected!' });
 
-    // Call the transcription function, passing the initialized openai client
-    const text = await transcribeAudio(req.file.path, openai);
+    console.log("Processing file with Groq:", req.file.path);
 
-    // Save upload details and transcription to db.json
+    // Groq Transcription
+    const transcription = await groq.audio.transcriptions.create({
+      file: fs.createReadStream(req.file.path),
+      model: "whisper-large-v3",
+      response_format: "text",
+    });
+
+    // Update DB
     const db = JSON.parse(fs.readFileSync('db.json', 'utf8'));
-    
-    const newEntry = {
+    db.transcriptions.push({
       audioPath: req.file.path,
-      transcriptionText: text,
+      transcription: transcription,
       timestamp: new Date().toISOString()
-    };
-
-    db.transcriptions.push(newEntry);
+    });
     fs.writeFileSync('db.json', JSON.stringify(db, null, 2));
 
-    res.status(200).json({ 
-      message: 'File uploaded and transcribed successfully!', 
-      transcription: text,
-      filePath: req.file.path 
-    });
+    res.status(200).json({ transcription: transcription });
   } catch (error) {
-    res.status(500).json({ message: 'Error during upload or transcription', error: error.message });
+    console.error("❌ Groq Error:", error);
+    res.status(500).json({ message: 'Error', error: error.message });
   }
 });
 
