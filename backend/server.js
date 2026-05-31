@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
-const Transcription = require('./models/Transcription');
+const Transcription = require('./models/transcription');
 
 const app = express();
 
