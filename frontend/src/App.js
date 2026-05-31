@@ -64,7 +64,7 @@ export default function App() {
 
     try {
       const response = await axios.post(
-        'http://localhost:5001/upload',
+        'https://speech-to-text-m1p3.onrender.com/upload',
         formData,
         {
           headers: {
