@@ -11,6 +11,7 @@ const Transcription = require('./models/transcription');
 
 const app = express();
 
+// ---------------- MIDDLEWARE ----------------
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST'],
@@ -19,13 +20,17 @@ app.use(cors({
 
 app.use(express.json());
 
-if (!fs.existsSync('uploads')) {
-  fs.mkdirSync('uploads');
+// ---------------- UPLOAD FOLDER ----------------
+const uploadDir = path.join(__dirname, 'uploads');
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
 }
 
+// ---------------- MULTER CONFIG ----------------
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/');
+    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname) || '.webm';
@@ -35,58 +40,49 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+// ---------------- GROQ INIT ----------------
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
 
-const DB_URI =
-  'mongodb+srv://anutoshkumarray_db_user:I4TZ6erdBkcmq6f2@cluster0.mozpodn.mongodb.net/speechDB?appName=Cluster0';
-
-mongoose
-  .connect(DB_URI)
-  .then(() => {
-    console.log('✅ MongoDB Connected Successfully');
-  })
-  .catch((err) => {
-    console.error('❌ DB Connection Error:', err);
-  });
-
+// ---------------- ROUTES ----------------
 app.get('/', (req, res) => {
-  res.send('Server Running');
+  res.send('Server Running 🚀');
 });
 
 app.post('/upload', upload.single('audio'), async (req, res) => {
-  console.log('📥 Request received at /upload');
+  console.log('📥 Upload request received');
 
   try {
     if (!req.file) {
-      return res.status(400).json({
-        error: 'No file uploaded'
-      });
+      return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    console.log('📄 File Path:', req.file.path);
-    console.log('📄 Original Name:', req.file.originalname);
+    const filePath = req.file.path;
+
+    console.log('📄 File:', filePath);
 
     const transcription = await groq.audio.transcriptions.create({
-      file: fs.createReadStream(req.file.path),
+      file: fs.createReadStream(filePath),
       model: 'whisper-large-v3'
     });
 
     const newEntry = new Transcription({
       text: transcription.text,
-      audioPath: req.file.path
+      audioPath: filePath
     });
 
     await newEntry.save();
 
-    if (fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    // cleanup file
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
     }
 
     res.status(200).json({
       transcription: transcription.text
     });
+
   } catch (error) {
     console.error('❌ Upload Error:', error);
 
@@ -102,19 +98,31 @@ app.post('/upload', upload.single('audio'), async (req, res) => {
 
 app.get('/history', async (req, res) => {
   try {
-    const history = await Transcription.find().sort({
-      timestamp: -1
-    });
-
+    const history = await Transcription.find().sort({ createdAt: -1 });
     res.status(200).json(history);
   } catch (error) {
-    res.status(500).json({
-      error: error.message
-    });
+    res.status(500).json({ error: error.message });
   }
 });
 
-const PORT = process.env.PORT || 5001;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+// ---------------- DB + SERVER START ----------------
+const DB_URI = process.env.DB_URI; // ⚠️ DO NOT hardcode in production
+
+async function startServer() {
+  try {
+    await mongoose.connect(DB_URI);
+    console.log('✅ MongoDB Connected Successfully');
+
+    const PORT = process.env.PORT || 5001;
+
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
+
+  } catch (err) {
+    console.error('❌ DB Connection Failed:', err);
+    process.exit(1);
+  }
+}
+
+startServer();
